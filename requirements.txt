@@ -1,0 +1,19 @@
+# Core database client
+# Note: You must download the .whl file from the official repo and install it manually
+# pip install actiancortex-0.1.0b1-py3-none-any.whl
+# Or if it's available on PyPI:
+# actiancortex==0.1.0b1
+
+# Vector database client & utilities
+grpcio>=1.60.0
+protobuf>=4.25.0
+
+# Multimodal Embeddings
+sentence-transformers>=2.2.0
+torch>=2.0.0
+pillow>=10.0.0
+
+# Explainable AI & Visualization
+pytorch-grad-cam
+opencv-python
+matplotlib
