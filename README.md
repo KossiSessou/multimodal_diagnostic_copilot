@@ -1,30 +1,30 @@
-# 🔬 RadarAI: Universal Multimodal Diagnostic Copilot
+#  Multimodal Diagnostic Copilot
 
-**RadarAI** is a domain-agnostic, retrieval-augmented generation (RAG) system designed to assist medical professionals. It combines the high-performance hybrid search of **Actian VectorAI** with the multimodal reasoning of **Google Gemini** (or local **Ollama** models) to provide evidence-based diagnostic insights.
+Our model is a domain-agnostic, retrieval-augmented generation (RAG) system designed to assist medical professionals. It combines the high-performance hybrid search of **Actian VectorAI** with the multimodal reasoning of **Google Gemini** (or local **Ollama** models) to provide evidence-based diagnostic insights.
 
 Unlike standard "black box" AI, RadarAI grounds every diagnosis in retrieved historical evidence, displaying similar verified cases alongside its analysis to ensure clinical traceability.
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-*   **🧠 Multi-Agent "Factory" Architecture**
+*   ** Multi-Agent "Factory" Architecture**
     *   **Agent 1 (Visual Analyst):** specialized vision model (Gemini 1.5 Flash / Llava) extracts objective technical findings.
     *   **Agent 2 (Clinical Integrator):** correlates visual findings with patient history and retrieved evidence.
     *   **Agent 3 (Chief Synthesis):** generates the final professional medical report with confidence scores.
-*   **⚡ Powered by Actian VectorAI**
+*   ** Powered by Actian VectorAI**
     *   Leverages Actian's hybrid engine for sub-50ms retrieval of high-dimensional multimodal vectors.
     *   Uses **CLIP (ViT-B/32)** for visual search and **all-MiniLM-L6-v2** for semantic text search.
-*   **🔌 Domain-Agnostic Design**
+*   ** Domain-Agnostic Design**
     *   Not limited to X-rays. The architecture supports **Dermatology**, **Pathology**, **MRI**, and **CT** scans.
     *   Includes universal ingestors for any image+text medical dataset.
-*   **☁️ Hybrid AI Backend**
+*   ** Hybrid AI Backend**
     *   **Cloud Mode:** Uses Google **Gemini 1.5 Pro/Flash** for state-of-the-art reasoning.
     *   **Local Mode:** Fully offline capable using **Ollama** (Llava + Mistral) for privacy-first deployments.
 
 ---
 
-## 🛠️ Installation & Setup
+## Installation & Setup
 
 ### 1. Prerequisites
 *   **Docker Desktop** (for the database)
@@ -64,24 +64,9 @@ LLM_PROVIDER=gemini  # or 'ollama'
 
 ---
 
-## 📊 Data Ingestion (Build Your Evidence Base)
+## Data Ingestion (Build Your Evidence Base)
 
-RadarAI needs verified medical data to function. We provide scripts for two major datasets:
-
-### Option A: Dermatology (HAM10000)
-```bash
-# 1. Download Data
-mkdir -p data/ham10000
-# (Manually download or use provided curl commands in dev docs)
-
-# 2. Ingest & Create Synthetic Notes
-python ingest_ham10000.py
-
-# 3. Index into Actian
-python index_data.py
-```
-
-### Option B: Chest X-Rays (OpenI)
+### Chest X-Rays (OpenI)
 ```bash
 # 1. Download Data
 ./download_data.sh
@@ -95,7 +80,7 @@ python index_data.py
 
 ---
 
-## 🚀 Usage
+## Usage
 
 Launch the professional dashboard:
 ```bash
@@ -113,7 +98,7 @@ streamlit run app.py
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 *   `app.py`: Main Streamlit dashboard with "Medical-Grade" UI.
 *   `search_and_generate.py`: Core logic for the RAG pipeline, LLM abstraction, and Multi-Agent factory.
@@ -123,7 +108,7 @@ streamlit run app.py
 
 ---
 
-## 🏆 Hacklytics 2026 Submission
+## Hacklytics 2026 Submission
 Built for the **Healthcare** and **Best Use of Actian VectorAI DB** tracks.
 
 **Technology Stack:**
