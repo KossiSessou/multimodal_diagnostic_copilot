@@ -6,6 +6,7 @@ from sentence_transformers import SentenceTransformer
 from cortex import CortexClient, DistanceMetric
 from tqdm import tqdm
 import os
+import argparse
 
 # Configuration
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -14,102 +15,61 @@ CLIP_MODEL_NAME = "ViT-B/32"
 ACTIAN_ADDR = "localhost:50051"
 BATCH_SIZE = 32
 
-def main():
-    # 1. Load the processed data
-    if not os.path.exists("processed_data.csv"):
-        print("Error: processed_data.csv not found. Run Phase 2 first.")
+def index_modality(csv_path, collection_prefix):
+    """
+    Indexes data into modality-specific collections (e.g., cxr_text, dermo_text).
+    """
+    if not os.path.exists(csv_path):
+        print(f"Error: {csv_path} not found.")
         return
     
-    df = pd.read_csv("processed_data.csv").head(500) # Limiting to 500 for initial test
-    print(f"Loaded {len(df)} records for indexing.")
+    df = pd.read_csv(csv_path).head(1000) # Indexing 1000 for each for the demo
+    print(f"--- 🔄 Indexing {len(df)} records for {collection_prefix} ---")
 
-    # 2. Initialize Embedding Models
-    print(f"Loading models on {DEVICE}...")
     text_model = SentenceTransformer(TEXT_MODEL_NAME, device=DEVICE)
     clip_model, preprocess = clip.load(CLIP_MODEL_NAME, device=DEVICE)
 
-    # 3. Connect to Actian VectorAI DB
-    print(f"Connecting to Actian VectorAI DB at {ACTIAN_ADDR}...")
     with CortexClient(ACTIAN_ADDR) as client:
-        # Create Collections
-        # Dimensions: all-MiniLM-L6-v2 = 384, CLIP ViT-B/32 = 512
-        print("Creating collections...")
-        try:
-            client.create_collection(
-                name="cxr_text", 
-                dimension=384, 
-                distance_metric=DistanceMetric.COSINE
-            )
-            client.create_collection(
-                name="cxr_images", 
-                dimension=512, 
-                distance_metric=DistanceMetric.COSINE
-            )
-        except Exception as e:
-            print(f"Note: Collections might already exist: {e}")
+        # Create unique collections for this modality
+        text_col = f"{collection_prefix}_text"
+        img_col = f"{collection_prefix}_images"
+        
+        client.create_collection(name=text_col, dimension=384, distance_metric=DistanceMetric.COSINE)
+        client.create_collection(name=img_col, dimension=512, distance_metric=DistanceMetric.COSINE)
 
-        # 4. Process and Index in Batches
-        for i in tqdm(range(0, len(df), BATCH_SIZE), desc="Indexing Batches"):
+        for i in tqdm(range(0, len(df), BATCH_SIZE), desc=f"Indexing {collection_prefix}"):
             batch = df.iloc[i : i + BATCH_SIZE]
             
-            # --- Text Embeddings ---
+            # Text Indexing
             texts = batch["findings"].fillna("").tolist()
             text_embeddings = text_model.encode(texts).tolist()
-            
-            # --- Image Embeddings ---
-            image_embeddings = []
-            valid_indices = []
-            
-            for idx, img_path in enumerate(batch["image_paths"]):
-                try:
-                    image = preprocess(Image.open(img_path)).unsqueeze(0).to(DEVICE)
-                    with torch.no_grad():
-                        image_features = clip_model.encode_image(image)
-                        image_features /= image_features.norm(dim=-1, keepdim=True)
-                        image_embeddings.append(image_features.cpu().numpy().flatten().tolist())
-                        valid_indices.append(idx)
-                except Exception as e:
-                    print(f"Skip image {img_path}: {e}")
-
-            # --- Batch Upsert to Actian ---
-            # Index Text
             text_ids = [i + j for j in range(len(text_embeddings))]
-            text_payloads = [
-                {
-                    "xml_file": str(batch.iloc[j]["xml_file"]),
-                    "impression": str(batch.iloc[j]["impression"])[:500] if pd.notna(batch.iloc[j]["impression"]) else ""
-                }
-                for j in range(len(text_embeddings))
-            ]
+            text_payloads = [{"xml_file": str(row["xml_file"]), "findings": str(row["findings"])} for _, row in batch.iterrows()]
+            client.batch_upsert(collection_name=text_col, ids=text_ids, vectors=text_embeddings, payloads=text_payloads)
+
+            # Image Indexing
+            img_embeddings = []
+            img_ids = []
+            img_payloads = []
+            for idx, row in batch.iterrows():
+                try:
+                    img = preprocess(Image.open(row["image_paths"])).unsqueeze(0).to(DEVICE)
+                    with torch.no_grad():
+                        feat = clip_model.encode_image(img)
+                        feat /= feat.norm(dim=-1, keepdim=True)
+                        img_embeddings.append(feat.cpu().numpy().flatten().tolist())
+                        img_ids.append(1000000 + idx)
+                        img_payloads.append({"xml_file": str(row["xml_file"]), "findings": str(row["findings"]), "path": str(row["image_paths"])})
+                except: continue
             
-            client.batch_upsert(
-                collection_name="cxr_text",
-                ids=text_ids,
-                vectors=text_embeddings,
-                payloads=text_payloads
-            )
-
-            # Index Images
-            if image_embeddings:
-                # Use a high offset for image IDs to keep them distinct from text IDs if needed
-                # Or just use the dataframe index if it's unique
-                img_ids = [1000000 + i + idx for idx in valid_indices]
-                img_payloads = [
-                    {
-                        "xml_file": str(batch.loc[batch.index[idx], "xml_file"]),
-                        "path": str(batch.loc[batch.index[idx], "image_paths"])
-                    }
-                    for idx in valid_indices
-                ]
-                
-                client.batch_upsert(
-                    collection_name="cxr_images",
-                    ids=img_ids,
-                    vectors=image_embeddings,
-                    payloads=img_payloads
-                )
-
-    print("--- Phase 3: Indexing Complete ---")
+            if img_embeddings:
+                client.batch_upsert(collection_name=img_col, ids=img_ids, vectors=img_embeddings, payloads=img_payloads)
 
 if __name__ == "__main__":
-    main()
+    # 1. Index X-Rays (if the processed_data.csv is the X-ray one)
+    # index_modality("processed_data_cxr.csv", "cxr")
+    
+    # 2. Index Skin (if the processed_data.csv is the HAM10000 one)
+    # index_modality("processed_data_ham.csv", "dermo")
+    
+    print("Run index_modality manually for each dataset to keep them separate.")
